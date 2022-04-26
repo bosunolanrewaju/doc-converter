@@ -1,8 +1,11 @@
+import * as fs from 'fs';
 import {
   Body,
   Controller,
   HttpCode,
   Post,
+  Res,
+  StreamableFile,
   UploadedFile,
   UseInterceptors,
   UsePipes,
@@ -10,15 +13,15 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBadRequestResponse, ApiTags } from '@nestjs/swagger';
-import { Express } from 'express';
-import { ConverterService } from '../converters/converter/converter.service';
+import { Express, Response } from 'express';
 import { ConvertDocumentDto } from './dto/convert-document.dto';
 import { ConvertTextDocumentDto } from './dto/convert-text-document.dto';
+import { DocumentsService } from './documents.service';
 
 @ApiTags('documents')
 @Controller('documents')
 export class DocumentsController {
-  constructor(private converterService: ConverterService) {}
+  constructor(private documentsService: DocumentsService) {}
 
   @ApiBadRequestResponse()
   @HttpCode(200)
@@ -28,17 +31,16 @@ export class DocumentsController {
   convertDocument(
     @Body() body: ConvertDocumentDto,
     @UploadedFile() file: Express.Multer.File,
-  ): { body: string } {
-    const data = this.converterService
-      .loadFile(file?.path)
-      .loadFileContent(file.buffer.toString())
-      .setStringOptions({
-        elementDelimiter: body.elementDelimiter,
-        lineDelimiter: body.lineDelimiter,
-      })
-      .convert(body.from, body.to);
+    @Res({ passthrough: true }) res: Response,
+  ): StreamableFile {
+    const doc = this.documentsService.convert(file, body);
 
-    return { body: data };
+    res.set({
+      'Content-Type': doc.getContentType(),
+      'Content-Disposition': `attachment; filename="${doc.getFilename()}"`,
+    });
+
+    return doc.toFile();
   }
 
   @ApiBadRequestResponse()
@@ -46,14 +48,7 @@ export class DocumentsController {
   @Post('convert-text')
   @UsePipes(new ValidationPipe({ transform: true }))
   convertText(@Body() body: ConvertTextDocumentDto): { body: string } {
-    const data = this.converterService
-      .loadFileContent(body.text)
-      .setStringOptions({
-        elementDelimiter: body.elementDelimiter,
-        lineDelimiter: body.lineDelimiter,
-      })
-      .convert(body.from, body.to);
-
-    return { body: data };
+    const data = this.documentsService.convertText(body);
+    return { body: data.toString() };
   }
 }

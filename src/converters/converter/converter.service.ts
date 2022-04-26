@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, StreamableFile } from '@nestjs/common';
 import { FileService } from '../file/file.service';
 import {
   IConvertibleFormat,
@@ -44,6 +44,11 @@ export class ConverterService {
     const contentObject = this.convertToObject(fromFormat);
 
     return this.convertFromObject(contentObject, toFormat);
+  }
+
+  public toFile(content: string) {
+    const buffer = Buffer.from(content);
+    return new StreamableFile(buffer);
   }
 
   private convertToObject(fromFormat: IConvertibleFormat) {
